@@ -1,0 +1,53 @@
+name: Render Video
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_data:
+        description: 'Video data JSON'
+        required: true
+        type: string
+      webhook_url:
+        description: 'Webhook URL for completion notification'
+        required: false
+        type: string
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ffmpeg
+        pip install -r requirements.txt
+        
+    - name: Create video data file
+      run: echo '${{ github.event.inputs.video_data }}' > video_data.json
+      
+    - name: Render video
+      run: python render_video.py
+      
+    - name: Upload video artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: rendered-video
+        path: output/
+        retention-days: 7
+        
+    - name: Notify completion
+      if: github.event.inputs.webhook_url != ''
+      run: |
+        curl -X POST "${{ github.event.inputs.webhook_url }}" \
+          -H "Content-Type: application/json" \
+          -d '{"status": "completed", "run_id": "${{ github.run_id }}"}'
